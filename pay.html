@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>FalconX Pay</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0b1020;
+      color: white;
+    }
+
+    header {
+      padding: 25px;
+      text-align: center;
+      border-bottom: 1px solid #26304a;
+    }
+
+    header h1 {
+      margin: 0;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: 60px auto;
+      padding: 20px;
+    }
+
+    .card {
+      background: #121a2e;
+      padding: 30px;
+      border-radius: 16px;
+    }
+
+    label {
+      display: block;
+      margin-top: 20px;
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid #34405c;
+      background: #0b1020;
+      color: white;
+      font-size: 16px;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 25px;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      background: #78b7ff;
+      color: #07101f;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .status {
+      margin-top: 20px;
+      color: #9da9c2;
+      text-align: center;
+    }
+
+    .back {
+      display: block;
+      margin-top: 25px;
+      text-align: center;
+      color: #78b7ff;
+      text-decoration: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <h1>🦅 FalconX Pay</h1>
+  </header>
+
+  <div class="container">
+
+    <div class="card">
+
+      <h2>Send FLX</h2>
+
+      <label for="recipient">
+        Recipient Address
+      </label>
+
+      <input
+        id="recipient"
+        type="text"
+        placeholder="Enter wallet address"
+      >
+
+      <label for="amount">
+        Amount
+      </label>
+
+      <input
+        id="amount"
+        type="number"
+        placeholder="Enter FLX amount"
+        min="0"
+      >
+
+      <button onclick="showStatus()">
+        Send FLX
+      </button>
+
+      <div class="status" id="status">
+        Waiting for wallet...
+      </div>
+
+    </div>
+
+    <a class="back" href="
