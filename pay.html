@@ -72,7 +72,7 @@
       text-align: center;
     }
 
-    .back {
+  
       display: block;
       margin-top: 25px;
       text-align: center;
@@ -80,12 +80,10 @@
       text-decoration: none;
     }
   </style>
-</head>
-function connectDemo() {
-    document.getElementById("status").innerText =
-        "Demo wallet connected — no real transaction.";
-}
-<body>
+<button onclick="document.getElementById('status').innerText='Demo wallet connected — no real transaction.';">
+    Connect Wallet
+</button>
+<button onclick=
 
   <header>
     <h1>🦅 FalconX Pay</h1>
@@ -121,7 +119,6 @@ function connectDemo() {
       <button onclick="showStatus()">
         Send FLX
       </button>
-      <button onclick="connectDemo()">Connect Wallet</button>
 
       <div class="status" id="status">
         <p id="status">Waiting for wallet...</p>
