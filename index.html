@@ -1,105 +1,86 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FalconX — Payments, made simple</title>
-
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #0b1020;
-      color: white;
-      text-align: center;
-    }
-
-    header {
-      padding: 25px;
-      border-bottom: 1px solid #26304a;
-    }
-
-    h1 {
-      font-size: 48px;
-      margin-top: 80px;
-    }
-
-    .hero {
-      padding: 40px 20px;
-    }
-
-    .hero p {
-      color: #b8c2d9;
-      font-size: 18px;
-    }
-
-    .card {
-      max-width: 700px;
-      margin: 30px auto;
-      padding: 25px;
-      background: #121a2e;
-      border-radius: 15px;
-    }
-
-    .button {
-      display: inline-block;
-      margin-top: 20px;
-      padding: 12px 25px;
-      background: #78b7ff;
-      color: #07101f;
-      text-decoration: none;
-      border-radius: 8px;
-      font-weight: bold;
-    }
-
-    footer {
-      margin-top: 70px;
-      padding: 25px;
-      color: #8893aa;
-    }
-  </style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { background:#0a1222; color:white; font-family: sans-serif; display:flex; justify-content:center; padding:20px; }
+.card { background:#162032; padding:25px; border-radius:20px; width:100%; max-width:380px; box-shadow:0 10px 30px rgba(0,0,0,0.5); }
+h2 { margin:0 0 20px 0; font-size:28px; }
+label { color:#a0aec0; font-size:14px; margin-top:15px; display:block; }
+input { width:100%; background:#0f1a2e; border:1px solid #2d3a52; border-radius:12px; padding:14px; color:white; margin-top:8px; box-sizing:border-box; outline:none; }
+input:focus { border-color:#7eb8ff; }
+.btn { width:100%; padding:14px; border-radius:12px; border:none; font-weight:bold; font-size:16px; margin-top:15px; cursor:pointer; }
+.btn-primary { background:#7eb8ff; color:#0a1222; }
+.btn-secondary { background:#2d3a52; color:white; border:1px solid #3d4f6f; }
+#status { margin-top:15px; text-align:center; font-size:13px; color:#7eb8ff; min-height:20px;}
+.header { text-align:center; margin-bottom:30px; font-size:24px; font-weight:bold; }
+</style>
 </head>
-
 <body>
 
-  <header>
-    <strong>🦅 FalconX</strong>
-  </header>
+<div style="width:100%">
+<div class="header">🦅 FalconX Pay</div>
+<div class="card">
+  <h2>Send FLX</h2>
+  <div id="status"></div>
 
-  <section class="hero">
-    <h1>FalconX</h1>
+  <label>Recipient Address</label>
+  <input id="recipient" placeholder="0x...">
 
-    <p>
-      Payments, made simple.
-    </p>
+  <label>Amount</label>
+  <input id="amount" type="number" placeholder="0.0">
 
-    <div class="card">
-      <h2>About FalconX</h2>
+  <button class="btn btn-primary" onclick="sendFLX()">Send FLX</button>
+  <button class="btn btn-secondary" id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
+</div>
+</div>
 
-      <p>
-        FalconX is a proposed blockchain payment project
-        focused on exploring fast and accessible digital payments.
-      </p>
+<script>
+// SABON CODE MAI HADA WALLET NA GASKE
+let userAccount = null;
 
-      <a class="button" href="whitepaper.html">
-        Read Whitepaper
-        <a class="button" href="pay.html">Open FalconX Pay</a>
-      </a>
-    </div>
+async function connectWallet() {
+  const status = document.getElementById("status");
+  const btn = document.getElementById("connectBtn");
 
-    <div class="card">
-      <h2>FLX Token</h2>
+  if (typeof window.ethereum === 'undefined') {
+    status.innerText = "❌ MetaMask ba a saka ba. Saka MetaMask da farko!";
+    return;
+  }
 
-      <p><strong>Name:</strong> FalconX</p>
-      <p><strong>Symbol:</strong> FLX</p>
-      <p><strong>Network:</strong> BNB Smart Chain</p>
-      <p><strong>Total Supply:</strong> 1,000,000,000 FLX</p>
-    </div>
-  </section>
+  try {
+    btn.innerText = "Connecting...";
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    userAccount = accounts[0];
+    status.innerText = "✅ Connected: " + userAccount.substring(0,6) + "..." + userAccount.substring(38);
+    btn.innerText = "Connected ✓";
+  } catch (e) {
+    status.innerText = "❌ An ki amincewa da connection";
+    btn.innerText = "Connect Wallet";
+  }
+}
 
-  <footer>
-    FalconX — Project under development
-  </footer>
+function sendFLX() {
+  const recipient = document.getElementById("recipient").value;
+  const amount = document.getElementById("amount").value;
+  const status = document.getElementById("status");
 
+  if(!userAccount) {
+    status.innerText = "⚠️ Da farko ka haɗa Wallet!";
+    return;
+  }
+  if(recipient.length < 42) {
+    status.innerText = "⚠️ Adireshin ba daidai bane!";
+    return;
+  }
+  if(!amount || amount <= 0) {
+    status.innerText = "⚠️ Saka adadin FLX!";
+    return;
+  }
+
+  status.innerText = "⏳ Ana tura " + amount + " FLX zuwa " + recipient.substring(0,6) + "...";
+  // Anan ne zaka saka code na contract din FLX dinka na gaske
+}
+</script>
 </body>
 </html>
