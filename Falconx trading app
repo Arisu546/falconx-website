@@ -161,6 +161,30 @@ export const GlobalCryptoTradingEngine: React.FC = () => {
             </button>
             <button 
               onClick={() => setOrderType('SELL')} 
+# Python Liquidity Aggregator (CCXT Library)
+import ccxt
+
+def initialize_liquidity_markets():
+    # Haɗa dandalin kasuwanci da manyan musayar kuɗi na duniya
+    exchange = ccxt.binance({
+        'apiKey': 'YOUR_API_KEY',
+        'secret': 'YOUR_SECRET_KEY',
+        'enableRateLimit': True,
+    })
+
+    # Jawo dukkan kasuwannin da ke akwai a duniya (All Markets / Tickers)
+    markets = exchange.load_markets()
+    print(adadin_kasuwanni := f"An shigo da kasuwanni guda {len(markets)} cikin nasara.")
+
+    # Dauko farashin yanzu na dukkan kasuwanni (Live Orderbook & Ticker)
+    tickers = exchange.fetch_tickers()
+    
+    for symbol in list(tickers.keys())[:5]: # Misali na farko guda 5
+        print(f"Kasuwa: {symbol} | Farashin Yanzu: ${tickers[symbol]['last']}")
+
+if __name__ == '__main__':
+    initialize_liquidity_markets()
+
               style={{ flex: 1, padding: '10px', backgroundColor: orderType === 'SELL' ? '#f6465d' : '#2b313a', color: '#fff', border: 'none', borderRadius: '4px' }}>
               SELL
             </button>
@@ -334,3 +358,878 @@ app.post('/api/kyc/webhook', (req, res) => {
 
     res.status(200).send('An karɓi sakon KYC');
 });
+# Kubernetes Deployment Configuration for Trading Microservices
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crypto-matching-engine
+  labels:
+    app: matching-engine
+spec:
+  replicas: 5 # Yawaita sabar don raba nauyi (Load Balancing)
+  selector:
+    matchLabels:
+      app: matching-engine
+  template:
+    metadata:
+      labels:
+        app: matching-engine
+    spec:
+      containers:
+      - name: engine
+        image: your-dockerhub-username/crypto-matching-engine:v1.0
+        ports:
+        - containerPort: 5000
+        env:
+        - name: REDIS_HOST
+          value: "redis-cluster-master.database.svc.cluster.local"
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: matching-engine-service
+spec:
+  selector:
+    app: matching-engine
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
+  type: LoadBalancer
+// schema.prisma - PostgreSQL Database Structure
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String      @id @default(uuid())
+  email         String      @unique
+  passwordHash  String
+  kycStatus     KycStatus   @default(PENDING)
+  fireblocksId  String?     @unique
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  wallets       Wallet[]
+  orders        Order[]
+}
+
+model Wallet {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  asset     String   // Misali: 'BTC', 'ETH', 'USDT'
+  balance   Float    @default(0.0)
+  locked    Float    @default(0.0) // Kuɗin da ke cikin bude-oda (Active Orders)
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  symbol    String      // Misali: 'BTCUSDT'
+  side      OrderSide   // BUY ko SELL
+  type      OrderType   // LIMIT ko MARKET
+  price     Float
+  quantity  Float
+  status    OrderStatus @default(OPEN)
+  createdAt DateTime    @default(now())
+}
+
+enum KycStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderType {
+  LIMIT
+  MARKET
+}
+
+enum OrderStatus {
+  OPEN
+  FILLED
+  CANCELLED
+}
+// dbService.js - PostgreSQL Backend Controller
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+const bcrypt = req('bcrypt'); // ko bcryptjs
+
+// 1. Yin rijistar sabon mai amfani (Register User)
+async function registerNewUser(email, password, fireblocksVaultId) {
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        const newUser = await prisma.user.create({
+            data: {
+                email,
+                passwordHash: hashedPassword,
+                fireblocksId: fireblocksVaultId,
+                wallets: {
+                    create: [
+                        { asset: 'USDT', balance: 0.0 },
+                        { asset: 'BTC', balance: 0.0 }
+                    ]
+                }
+            },
+            include: { wallets: true }
+        });
+
+        console.log', newUser.email);
+        return { status: 'SUCCESS', user: newUser };
+    } catch (error) {
+        console.error(':', error);
+        return { status: 'ERROR', message: '.' };
+    }
+}
+
+// 2. Ajiye Odar Ciniki a Database (Save Order)
+async function saveTradeOrder(userId, symbol, side, type, price, quantity) {
+    try {
+        const newOrder = await prisma.order.create({
+            data: {
+                userId,
+                symbol,
+                side,
+                type,
+                price,
+                quantity,
+                status: 'OPEN'
+            }
+        });
+
+        console.log('An adana odar ciniki a database:', newOrder.id);
+        return { status: 'SUCCESS', order: newOrder };
+    } catch (error) {
+        console.error('Kuskure wajen adana oda:', error);
+        return { status: 'ERROR', message: 'Ba a yi nasarar ajiye odar ba.' };
+    }
+}
+
+module.exports = { registerNewUser, saveTradeOrder };
+// server.js - Express REST API Backend
+const express = require('express');
+const cors = require('cors');
+const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcrypt');
+
+const app = express();
+const prisma = new PrismaClient();
+
+app.use(express.json());
+app.use(cors());
+
+// 1. API Endpoint na Yin Rijistar Mai Amfani
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        
+        const existingUser = await prisma.user.findUnique({ where: { email } });
+        if (existingUser) {
+            return res.status(400).json({ status: 'ERROR', message: 'Wannan Imel ɗin yana da mai shi riga.' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        const newUser = await prisma.user.create({
+            data: {
+                email,
+                passwordHash: hashedPassword,
+                wallets: {
+                    create: [
+                        { asset: 'USDT', balance: 1000.0 }, // Kyautar gwaji (Demo Balance)
+                        { asset: 'BTC', balance: 0.5 }
+                    ]
+                }
+            },
+            include: { wallets: true }
+        });
+
+        res.status(201).json({ status: 'SUCCESS', message: 'An buɗe asusu cikin nasira', user: newUser });
+    } catch (error) {
+        res.status(500).json({ status: 'ERROR', message: 'Matsala wajen haɗawa da Database', error: error.message });
+    }
+});
+
+// 2. API Endpoint na Jawo Bayanan Asusu da Wallets
+app.get('/api/user/wallet/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const userWallets = await prisma.wallet.findMany({
+            where: { userId: userId }
+        });
+
+        res.status(200).json({ status: 'SUCCESS', wallets: userWallets });
+    } catch (error) {
+        res.status(500).json({ status: 'ERROR', message: 'Ba a samu nasarar jawo bayanan wallet ba.' });
+    }
+});
+
+// 3. API Endpoint na Ajiye Odar Ciniki (Trade Order)
+app.post('/api/trade/order', async (req, res) => {
+    try {
+        const { userId, symbol, side, type, price, quantity } = req.body;
+
+        const newOrder = await prisma.order.create({
+            data: {
+                userId,
+                symbol,
+                side,
+                type,
+                price: parseFloat(price),
+                quantity: parseFloat(quantity),
+                status: 'OPEN'
+            }
+        });
+
+        res.status(200).json({ status: 'SUCCESS', message: 'An karɓi odar ciniki', order: newOrder });
+    } catch (error) {
+        res.status(500).json({ status: 'ERROR', message: 'Kuskure wajen aiwatar da oda.' });
+    }
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`REST API Server yana aiki a tashar port ${PORT}`));
+// FrontendComponent.jsx - React Integration Code
+import React, { useState, useEffect } from 'react';
+
+export function TradingDashboard({ userId }) {
+  const [wallets, setWallets] = useState([]);
+  const [amount, setAmount] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Jawo bayanan Wallet daga Backend API
+  useEffect(() => {
+    async function fetchUserWallets() {
+      try {
+        const response = await fetch(`http://localhost:5000/api/user/wallet/${userId}`);
+        const data = await response.json();
+        if (data.status === 'SUCCESS') {
+          setWallets(data.wallets);
+        }
+      } catch (error) {
+        console.error('Kuskure wajen karanta wallets:', error);
+      }
+    }
+
+    if (userId) {
+      fetchUserWallets();
+    }
+  }, [userId]);
+
+  // Aiki na Aika Odar Siya ko Sayarwa zuwa Database API
+  const handlePlaceOrder = async (side) => {
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/trade/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          symbol: 'BTCUSDT',
+          side: side, // 'BUY' ko 'SELL'
+          type: 'LIMIT',
+          price: 65000.0,
+          quantity: parseFloat(amount)
+        })
+      });
+
+      const result = await response.json();
+      if (result.status === 'SUCCESS') {
+        alert('An yi nasarar ƙaddamar da odar ciniki!');
+        setAmount('');
+      } else {
+        alert('Kuskure: ' + result.message);
+      }
+    } catch (error) {
+      alert('Matsala wajen haɗawa da sabar (Server Error)');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ padding: '20px', backgroundColor: '#121212', color: '#fff', borderRadius: '8px' }}>
+      <h2>Asusunka na Ciniki (Wallet Balance)</h2>
+      <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+        {wallets.map((w) => (
+          <div key={w.id} style={{ background: '#1e1e1e', padding: '15px', borderRadius: '6px' }}>
+            <h4>{w.asset}</h4>
+            <p>Akwai: {w.balance}</p>
+          </div>
+        ))}
+      </div>
+
+      <h3>Sanya Oda (Place Order)</h3>
+      <input 
+        type="number" 
+        placeholder="Adadin BTC..." 
+        value={amount} 
+        onChange={(e) => setAmount(e.target.value)}
+        style={{ padding: '10px', width: '100%', marginBottom: '10px', background: '#2a2a2a', color: '#fff', border: 'none' }}
+      />
+      
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <button 
+          onClick={() => handlePlaceOrder('BUY')} 
+          disabled={loading}
+          style={{ flex: 1, padding: '12px', background: '#0ecb81', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+          SIYA (BUY BTC)
+        </button>
+        <button 
+          onClick={() => handlePlaceOrder('SELL')} 
+          disabled={loading}
+          style={{ flex: 1, padding: '12px', background: '#f6465d', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+          SAYAR (SELL BTC)
+        </button>
+      </div>
+    </div>
+  );
+}// authServer.js - JWT Login & Registration Middleware
+const express = require('express');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const { PrismaClient } = require('@prisma/client');
+
+const app = express();
+const prisma = new PrismaClient();
+app.use(express.json());
+
+const JWT_SECRET = 'YOUR_SUPER_SECRET_KEY_HERE'; // A ajiye wannan a cikin .env file
+
+// 1. Login Endpoint (Tantance mai amfani tare da bayar da Token)
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) {
+            return res.status(400).json({ status: 'ERROR', message: 'Imel ko kalmar sirri ba daidai ba ne.' });
+        }
+
+        const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+        if (!isPasswordValid) {
+            return res.status(400).json({ status: 'ERROR', message: 'Imel ko kalmar sirri ba daidai ba ne.' });
+        }
+
+        // Ƙirƙirar JWT Token wanda zai dore na awa 24
+        const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '24h' });
+
+        res.status(200).json({
+            status: 'SUCCESS',
+            message: 'An shiga asusu cikin nasira',
+            token: token,
+            userId: user.id
+        });
+    } catch (error) {
+        res.status(500).json({ status: 'ERROR', message: 'Kuskure wajen shiga asusu', error: error.message });
+    }
+});
+
+// 2. Middleware na Tsaro (Kare API endpoints daga shiga ba tare da izini ba)
+function verifyToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+    if (!token) {
+        return res.status(401).json({ status: 'ERROR', message: 'An hana shiga! Babu Token.' });
+    }
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ status: 'ERROR', message: 'Token din ya ƙare ko bai da inganci.' });
+        }
+        req.user = user;
+        next();
+    });
+}
+
+// 3. Misali na Protected Endpoint (Wuri na musamman da sai da Token ake shiga)
+app.get('/api/user/profile', verifyToken, async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.userId },
+            include: { wallets: true }
+        });
+        res.status(200).json({ status: 'SUCCESS', user });
+    } catch (error) {
+        res.status(500).json({ status: 'ERROR', message: 'Matsala wajen jawo bayanan mai amfani.' });
+    }
+});
+
+app.listen(5001, () => console.log('Auth Server yana aiki a tashar port 5001'));
+
+// LoginFrontend.jsx - React Login & Authenticated Request Component
+import React, { useState } from 'react';
+
+export function LoginAndFetchProfile() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [profile, setProfile] = useState(null);
+
+  // Aikin Shiga Asusu (Login)
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await fetch('http://localhost:5001/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await response.json();
+      if (data.status === 'SUCCESS') {
+        // Ajiye Token a LocalStorage don amfani a gaba
+        localStorage.setItem('authToken', data.token);
+        alert('An shiga asusu cikin nasira!');
+        fetchUserProfile(data.token);
+      } else {
+        alert('Kuskure: ' + data.message);
+      }
+    } catch (error) {
+      alert('Matsala wajen haɗawa da Server');
+    }
+  };
+
+  // Jawo Bayanai ta amfani da JWT Token a Header
+  const fetchUserProfile = async (token) => {
+    try {
+      const response = await fetch('http://localhost:5001/api/user/profile', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      if (data.status === 'SUCCESS') {
+        setProfile(data.user);
+      }
+    } catch (error) {
+      console.error('Kuskure wajen jawo bayanan asusu');
+    }
+  };
+
+  return (
+    <div style={{ padding: '20px', backgroundColor: '#0b0e11', color: '#fff', borderRadius: '8px', maxWidth: '400px' }}>
+      <h2>Shiga Asusun Ciniki (Login)</h2>
+      <form onSubmit={handleLogin}>
+        <input 
+          type="email" 
+          placeholder="Imel ɗinka..." 
+          value={email} 
+          onChange={(e) => setEmail(e.target.value)}
+          style={{ width: '100%', padding: '10px', marginBottom: '10px', background: '#1e2329', color: '#fff', border: 'none' }}
+        />
+        <input 
+          type="password" 
+          placeholder="Kalmar sirri..." 
+          value={password} 
+          onChange={(e) => setPassword(e.target.value)}
+          style={{ width: '100%', padding: '10px', marginBottom: '10px', background: '#1e2329', color: '#fff', border: 'none' }}
+        />
+        <button type="submit" style={{ width: '100%', padding: '12px', background: '#0ecb81', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+          SHIGA (LOGIN)
+        </button>
+      </form>
+
+      {profile && (
+        <div style={{ marginTop: '20px', background: '#1e2329', padding: '15px', borderRadius: '6px' }}>
+          <h3>Bayanain Asusu:</h3>
+          <p>Imel: {profile.email}</p>
+          <p>Wallets:</p>
+          <ul>
+            {profile.wallets.map(w => (
+              <li key={w.id}>{w.asset}: {w.balance}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+// wsServer.js - Real-time WebSocket Notification Server
+const http = require('http');
+const express = require('express');
+const { WebSocketServer } = require('ws');
+
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
+// Ajiye masu amfani da suka haɗu (Active Connections)
+const clients = new Map();
+
+wss.on('connection', (ws, req) => {
+    // Kuna iya fitar da userId daga URL params, misali: ws://localhost:8080?userId=123
+    const urlParams = new URLSearchParams(req.url.split('?')[1]);
+    const userId = urlParams.get('userId');
+
+    if (userId) {
+        clients.set(userId, ws);
+        console.log(`Mai amfani mai ID: ${userId} ya haɗu da Real-time WebSocket.`);
+    }
+
+    ws.on('message', (message) => {
+        console.log(`An karɓi saƙo daga abokin ciniki: ${message}`);
+    });
+
+    ws.on('close', () => {
+        if (userId) {
+            clients.delete(userId);
+            console.log(`Mai amfani mai ID: ${userId} ya katse haɗin.`);
+        }
+    });
+});
+
+// Aiki na Tura Sanarwa (Notification) ga takamaiman Mai Amfani
+function sendRealTimeNotification(userId, notificationData) {
+    const clientWs = clients.get(userId);
+    if (clientWs && clientWs.readyState === clientWs.OPEN) {
+        clientWs.send(JSON.stringify(notificationData));
+        console.log(`An tura sanarwa zuwa ga mai amfani: ${userId}`);
+    }
+}
+
+// Misali na Endpoint wanda zai iya kiran aikin tura sanarwa idan wani abu ya faru
+app.post('/api/notify', express.json(), (req, res) => {
+    const { userId, title, message } = req.body;
+    sendRealTimeNotification(userId, { type: 'ALERT', title, message, time: new Date() });
+    res.status(200).json({ status: 'SUCCESS', message: 'An tura sanarwar cikin nasira' });
+});
+
+server.listen(8080, () => {
+    console.log('WebSocket Server yana aiki a tashar port 8080');
+});
+// NotificationComponent.jsx - React Real-time WebSocket Client
+import React, { useEffect, useState } from 'react';
+
+export function RealTimeNotifications({ userId }) {
+  const [notifications, setNotifications] = useState([]);
+  const [connectionStatus, setConnectionStatus] = useState('An katse');
+
+  useEffect(() => {
+    if (!userId) return;
+
+    // Haɗawa da WebSocket server tare da wuce userId a cikin query
+    const ws = new WebSocket(`ws://localhost:8080?userId=${userId}`);
+
+    ws.onopen = () => {
+      setConnectionStatus('An haɗa (Live)');
+      console.log('WebSocket Connection Active');
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      // Ƙara sabuwar sanarwa zuwa cikin jerin sanarwa
+      setNotifications((prev) => [data, ...prev]);
+    };
+
+    ws.onclose = () => {
+      setConnectionStatus('An katse (Disconnected)');
+      console.log('WebSocket Connection Closed');
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [userId]);
+
+  return (
+    <div style={{ padding: '20px', backgroundColor: '#1e2329', color: '#fff', borderRadius: '8px', maxWidth: '400px' }}>
+      <h3>Sanarwar Lokaci-Guda (Live Notifications)</h3>
+      <p>Matsayi: <span style={{ color: connectionStatus.includes('Live') ? '#0ecb81' : '#f6465d' }}>{connectionStatus}</span></p>
+
+      <div style={{ marginTop: '15px', maxHeight: '200px', overflowY: 'auto' }}>
+        {notifications.length === 0 ? (
+          <p style={{ color: '#848e9c' }}>Babu sabbin sanarwa a yanzu.</p>
+        ) : (
+          notifications.map((notif, index) => (
+            <div key={index} style={{ background: '#2b313a', padding: '10px', borderRadius: '6px', marginBottom: '10px' }}>
+              <h4 style={{ margin: '0 0 5px 0', color: '#0ecb81' }}>{notif.title}</h4>
+              <p style={{ margin: '0 0 5px 0', fontSize: '14px' }}>{notif.message}</p>
+              <small style={{ color: '#848e9c' }}>{new Date(notif.time).toLocaleTimeString()}</small>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+// backend/server.js
+const express = require('express');
+const http = require('http');
+const { WebSocketServer } = require('ws');
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const { PrismaClient } = require('@prisma/client');
+
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+const prisma = new PrismaClient();
+
+app.use(express.json());
+app.use(cors());
+
+const JWT_SECRET = 'SUPER_SECRET_CRYPTO_KEY_2026';
+
+// Ajiye masu amfani da suka haɗu da WebSocket (Active WS Clients)
+const clients = new Map();
+
+wss.on('connection', (ws, req) => {
+    const urlParams = new URLSearchParams(req.url.split('?')[1]);
+    const userId = urlParams.get('userId');
+
+    if (userId) {
+        clients.set(userId, ws);
+        console.log(`[WebSocket] Mai amfani ${userId} ya haɗu.`);
+    }
+
+    ws.on('close', () => {
+        if (userId) {
+            clients.delete(userId);
+            console.log(`[WebSocket] Mai amfani ${userId} ya katse.`);
+        }
+    });
+});
+
+function notifyUser(userId, data) {
+    const ws = clients.get(userId);
+    if (ws && ws.readyState === ws.OPEN) {
+        ws.send(JSON.stringify(data));
+    }
+}
+
+// 1. REGISTER ENDPOINT
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const existing = await prisma.user.findUnique({ where: { email } });
+        if (existing) return res.status(400).json({ status: 'ERROR', message: 'Imel din yana da mai shi riga.' });
+
+        const passwordHash = await bcrypt.hash(password, 10);
+        const user = await prisma.user.create({
+            data: {
+                email,
+                passwordHash,
+                wallets: {
+                    create: [
+                        { asset: 'USDT', balance: 5000.0 },
+                        { asset: 'BTC', balance: 1.0 }
+                    ]
+                }
+            },
+            include: { wallets: true }
+        });
+
+        res.status(201).json({ status: 'SUCCESS', message: 'An buɗe asusu cikin nasira', user });
+    } catch (err) {
+        res.status(500).json({ status: 'ERROR', message: err.message });
+    }
+});
+
+// 2. LOGIN ENDPOINT
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+            return res.status(400).json({ status: 'ERROR', message: 'Imel ko kalmar sirri ba daidai ba ne.' });
+        }
+
+        const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '24h' });
+        res.status(200).json({ status: 'SUCCESS', token, userId: user.id });
+    } catch (err) {
+        res.status(500).json({ status: 'ERROR', message: err.message });
+    }
+});
+
+// 3. GET USER WALLETS & PROFILE
+app.get('/api/user/profile/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: { wallets: true }
+        });
+        res.status(200).json({ status: 'SUCCESS', user });
+    } catch (err) {
+        res.status(500).json({ status: 'ERROR', message: err.message });
+    }
+});
+
+// 4. PLACE TRADE ORDER ENDPOINT
+app.post('/api/trade/order', async (req, res) => {
+    try {
+        const { userId, symbol, side, type, price, quantity } = req.body;
+
+        const order = await prisma.order.create({
+            data: { userId, symbol, side, type, price: parseFloat(price), quantity: parseFloat(quantity), status: 'FILLED' }
+        });
+
+        // Tura Real-time Notification ta WebSocket cewa an aiwatar da oda
+        notifyUser(userId, {
+            type: 'TRADE_SUCCESS',
+            title: `An yi nasarar ${side} ${symbol}`,
+            message: `Adadi: ${quantity} a farashi $${price}`,
+            time: new Date()
+        });
+
+        res.status(200).json({ status: 'SUCCESS', message: 'An zartar da odar ciniki', order });
+    } catch (err) {
+        res.status(500).json({ status: 'ERROR', message: err.message });
+    }
+});
+
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`Full-Stack Backend Server yana aiki a tashar port ${PORT}`));
+// frontend/src/App.jsx
+import React, { useState, useEffect } from 'react';
+
+export default function App() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [userId, setUserId] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [amount, setAmount] = useState('');
+  const [notifications, setNotifications] = useState([]);
+  const [wsStatus, setWsStatus] = useState('An katse');
+
+  // Aiki lokacin da aka yi Login
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (data.status === 'SUCCESS') {
+        setUserId(data.userId);
+        localStorage.setItem('token', data.token);
+        fetchProfile(data.userId);
+      } else {
+        alert(data.message);
+      }
+    } catch (err) {
+      alert('Matsala wajen haɗawa da Server');
+    }
+  };
+
+  // Jawo bayanan asusu da wallets
+  const fetchProfile = async (id) => {
+    const res = await fetch(`http://localhost:5000/api/user/profile/${id}`);
+    const data = await res.json();
+    if (data.status === 'SUCCESS') setProfile(data.user);
+  };
+
+  // Haɗa WebSocket idan mai amfani ya shiga asusu
+  useEffect(() => {
+    if (!userId) return;
+    const ws = new WebSocket(`ws://localhost:5000?userId=${userId}`);
+
+    ws.onopen = () => setWsStatus('Live (An Haɗa)');
+    ws.onmessage = (event) => {
+      const notif = JSON.parse(event.data);
+      setNotifications((prev) => [notif, ...prev]);
+      fetchProfile(userId); // Sabunta bayanan wallet idan an yi ciniki
+    };
+    ws.onclose = () => setWsStatus('An Katse');
+
+    return () => ws.close();
+  }, [userId]);
+
+  // Aika Odar Siya ko Sayarwa
+  const handleTrade = async (side) => {
+    if (!amount) return alert('Shigar da adadi!');
+    const res = await fetch('http://localhost:5000/api/trade/order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        symbol: 'BTCUSDT',
+        side,
+        type: 'MARKET',
+        price: 67000.0,
+        quantity: parseFloat(amount)
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'SUCCESS') {
+      alert('An aika oda!');
+      setAmount('');
+    }
+  };
+
+  if (!userId) {
+    return (
+      <div style={{ padding: '40px', background: '#0b0e11', color: '#fff', minHeight: '100vh', fontFamily: 'Arial' }}>
+        <h2>Shiga Asusun Ciniki (Crypto Login)</h2>
+        <form onSubmit={handleLogin} style={{ maxWidth: '350px', marginTop: '20px' }}>
+          <input type="email" placeholder="Imel..." value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', background: '#1e2329', color: '#fff', border: 'none' }} />
+          <input type="password" placeholder="Kalmar sirri..." value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', background: '#1e2329', color: '#fff', border: 'none' }} />
+          <button type="submit" style={{ width: '100%', padding: '12px', background: '#0ecb81', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>SHIGA</button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '30px', background: '#0b0e11', color: '#fff', minHeight: '100vh', fontFamily: 'Arial' }}>
+      <h2>Dandalin Ciniki na Kai Tsaye (Trading Dashboard)</h2>
+      <p>Matsayin WebSocket: <span style={{ color: wsStatus.includes('Live') ? '#0ecb81' : '#f6465d' }}>{wsStatus}</span></p>
+
+      {profile && (
+        <div style={{ display: 'flex', gap: '20px', margin: '20px 0' }}>
+          {profile.wallets.map(w => (
+            <div key={w.id} style={{ background: '#1e2329', padding: '15px', borderRadius: '6px', minWidth: '150px' }}>
+              <h4>{w.asset}</h4>
+              <p style={{ fontSize: '18px', fontWeight: 'bold' }}>{w.balance}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ background: '#1e2329', padding: '20px', borderRadius: '8px', maxWidth: '400px', marginTop: '20px' }}>
+        <h3>Sanya Oda ta BTCUSDT</h3>
+        <input type="number" placeholder="Adadin BTC..." value={amount} onChange={e => setAmount(e.target.value)} style={{ width: '100%', padding: '10px', marginBottom: '10px', background: '#2b313a', color: '#fff', border: 'none' }} />
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => handleTrade('BUY')} style={{ flex: 1, padding: '12px', background: '#0ecb81', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>SIYA (BUY)</button>
+          <button onClick={() => handleTrade('SELL')} style={{ flex: 1, padding: '12px', background: '#f6465d', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>SAYAR (SELL)</button>
+        </div>
+      </div>
+
+      <div style={{ marginTop: '30px', maxWidth: '400px' }}>
+        <h3>Sanarwa (Live Notifications)</h3>
+        {notifications.map((n, idx) => (
+          <div key={idx} style={{ background: '#1e2329', padding: '10px', borderRadius: '6px', marginBottom: '10px', borderLeft: '4px solid #0ecb81' }}>
+            <h4 style={{ margin: '0 0 5px 0' }}>{n.title}</h4>
+            <p style={{ margin: '0 0 5px 0', fontSize: '14px' }}>{n.message}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
