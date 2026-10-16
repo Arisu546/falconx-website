@@ -110,8 +110,8 @@ export const GlobalCryptoTradingEngine: React.FC = () => {
         </div>
         <div>
           <p>Canji (24h): <span style={{ color: Number(ticker?.change24h) >= 0 ? '#0ecb81' : '#f6465d' }}>{ticker?.change24h}%</span></p>
-          <p>Mafi Girma (24h): ${ticker?.high24h}</p>
-          <p>Mafi Kankanta (24h): ${ticker?.low24h}</p>
+          <p>high (24h): ${ticker?.high24h}</p>
+          <p>low (24h): ${ticker?.low24h}</p>
         </div>
       </header>
 
@@ -1104,84 +1104,63 @@ app.post('/api/trade/order', async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Full-Stack Backend Server yana aiki a tashar port ${PORT}`));
-// frontend/src/App.jsx
 import React, { useState, useEffect } from 'react';
 
-export default function App() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [userId, setUserId] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [amount, setAmount] = useState('');
-  const [notifications, setNotifications] = useState([]);
-  const [wsStatus, setWsStatus] = useState('An katse');
+export default function MarketPriceHeader({ symbol = 'BTCUSDT' }) {
+  const [priceData, setPriceData] = useState({
+    price: '0.00',
+    change: '0.00',
+    percentChange: '0.00',
+    isUp: true
+  });
 
-  // Aiki lokacin da aka yi Login
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await res.json();
-      if (data.status === 'SUCCESS') {
-        setUserId(data.userId);
-        localStorage.setItem('token', data.token);
-        fetchProfile(data.userId);
-      } else {
-        alert(data.message);
-      }
-    } catch (err) {
-      alert('Matsala wajen haɗawa da Server');
-    }
-  };
-
-  // Jawo bayanan asusu da wallets
-  const fetchProfile = async (id) => {
-    const res = await fetch(`http://localhost:5000/api/user/profile/${id}`);
-    const data = await res.json();
-    if (data.status === 'SUCCESS') setProfile(data.user);
-  };
-
-  // Haɗa WebSocket idan mai amfani ya shiga asusu
   useEffect(() => {
-    if (!userId) return;
-    const ws = new WebSocket(`ws://localhost:5000?userId=${userId}`);
+    // 1. Direct High-Speed WebSocket Connection
+    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@ticker`);
 
-    ws.onopen = () => setWsStatus('Live (An Haɗa)');
     ws.onmessage = (event) => {
-      const notif = JSON.parse(event.data);
-      setNotifications((prev) => [notif, ...prev]);
-      fetchProfile(userId); // Sabunta bayanan wallet idan an yi ciniki
+      const data = JSON.parse(event.data);
+      if (data && data.c) {
+        const currentPrice = parseFloat(data.c).toFixed(2);
+        const priceChange = parseFloat(data.p).toFixed(2);
+        const percentChange = parseFloat(data.P).toFixed(2);
+
+        setPriceData({
+          price: currentPrice,
+          change: priceChange,
+          percentChange: percentChange,
+          isUp: parseFloat(priceChange) >= 0
+        });
+      }
     };
-    ws.onclose = () => setWsStatus('An Katse');
 
-    return () => ws.close();
-  }, [userId]);
+    ws.onerror = (error) => {
+      console.warn("WebSocket Error, falling back to Backend CCXT Service:", error);
+    };
 
-  // Aika Odar Siya ko Sayarwa
-  const handleTrade = async (side) => {
-    if (!amount) return alert('Shigar da adadi!');
-    const res = await fetch('http://localhost:5000/api/trade/order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId,
-        symbol: 'BTCUSDT',
-        side,
-        type: 'MARKET',
-        price: 67000.0,
-        quantity: parseFloat(amount)
-      })
-    });
-    const data = await res.json();
-    if (data.status === 'SUCCESS') {
-      alert('An aika oda!');
-      setAmount('');
-    }
-  };
+    return () => {
+      ws.close();
+    };
+  }, [symbol]);
+
+  return (
+    <div className="flex items-center space-x-4 bg-gray-900 text-white p-4 rounded-lg">
+      <div>
+        <h2 className="text-xl font-bold">BTC/USD</h2>
+        <p className="text-sm text-gray-400">Bitcoin</p>
+      </div>
+      <div className="text-2xl font-extrabold tracking-wide">
+        <span className={priceData.isUp ? "text-green-500" : "text-red-500"}>
+          ${Number(priceData.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+        </span>
+      </div>
+      <div className={`text-sm font-semibold ${priceData.isUp ? "text-green-500" : "text-red-500"}`}>
+        {priceData.isUp ? '+' : ''}{priceData.change} ({priceData.percentChange}%)
+      </div>
+    </div>
+  );
+}
+
 
   if (!userId) {
     return (
