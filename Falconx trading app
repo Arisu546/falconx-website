@@ -186,3 +186,71 @@ export const GlobalCryptoTradingEngine: React.FC = () => {
     </div>
   );
 };
+// Order Matching Service (Node.js High-Throughput Core)
+const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
+
+const app = express();
+app.use(express.json());
+
+// In-Memory High-Speed Orderbook Queue
+const orderBook = {
+  BUY: [],
+  SELL: []
+};
+
+// Ultra-fast Matching Logic Engine
+function matchOrders(newOrder) {
+  const oppositeSide = newOrder.side === 'BUY' ? 'SELL' : 'BUY';
+  const queue = orderBook[oppositeSide];
+
+  for (let i = 0; i < queue.length; i++) {
+    const existingOrder = queue[i];
+
+    // Check Execution Condition
+    const isExecutable = newOrder.side === 'BUY' 
+      ? newOrder.price >= existingOrder.price 
+      : newOrder.price <= existingOrder.price;
+
+    if (isExecutable) {
+      const executedQty = Math.min(newOrder.quantity, existingOrder.quantity);
+      
+      console.log(`[MATCH SUCCESS] Executed ${executedQty} units at $${existingOrder.price}`);
+      
+      existingOrder.quantity -= executedQty;
+      newOrder.quantity -= executedQty;
+
+      if (existingOrder.quantity === 0) {
+        queue.splice(i, 1);
+        i--;
+      }
+
+      if (newOrder.quantity === 0) break;
+    }
+  }
+
+  // If order partially filled or unfilled, add to Order Book
+  if (newOrder.quantity > 0) {
+    orderBook[newOrder.side].push(newOrder);
+    // Sort Orderbook for Priority
+    orderBook.BUY.sort((a, b) => b.price - a.price);
+    orderBook.SELL.sort((a, b) => a.price - b.price);
+  }
+}
+
+app.post('/api/v1/order', (req, res) => {
+  const { symbol, side, price, quantity } = req.body;
+  
+  if (!symbol || !side || !price || !quantity) {
+    return res.status(400).json({ status: 'ERROR', message: 'Tabbatar duk bayanan odar sun cika.' });
+  }
+
+  const order = { id: Date.now(), symbol, side, price: parseFloat(price), quantity: parseFloat(quantity) };
+  matchOrders(order);
+
+  return res.status(200).json({ status: 'SUCCESS', message: 'An karɓi odar cikin zauren ma\'amala.', orderBook });
+});
+
+const server = http.createServer(app);
+server.listen(5000, () => console.log('High-Speed Matching Engine Server running on port 5000'));
