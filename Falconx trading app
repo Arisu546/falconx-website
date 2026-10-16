@@ -254,3 +254,83 @@ app.post('/api/v1/order', (req, res) => {
 
 const server = http.createServer(app);
 server.listen(5000, () => console.log('High-Speed Matching Engine Server running on port 5000'));
+// Fireblocks Vault & Transaction Integration (Node.js)
+const { FireblocksSDK } = require('fireblocks-sdk');
+const fs = require('fs');
+
+const apiKey = 'YOUR_FIREBLOCKS_API_KEY';
+const privateKey = fs.readFileSync('./fireblocks_secret.key', 'utf8');
+const fireblocks = new FireblocksSDK(privateKey, apiKey);
+
+async function createNewCustomerWallet(customerEmail) {
+    try {
+        // Create an MPC Vault Account for each user
+        const vaultAccount = await fireblocks.createVaultAccount(`User: ${customerEmail}`);
+        console.log(`An buɗe sabuwar asusun Vault ga abokin ciniki:`, vaultAccount.id);
+        return vaultAccount.id;
+    } catch (error) {
+        console.error('Kuskure wajen buɗe wallet:', error);
+    }
+}
+
+async function transferCryptoAsset(vaultId, assetId, amount, destinationAddress) {
+    try {
+        const transaction = await fireblocks.createTransaction({
+            assetId: assetId, // Misali: 'BTC', 'ETH', 'USDT'
+            source: {
+                type: 'VAULT_ACCOUNT',
+                id: vaultId
+            },
+            destination: {
+                type: 'ONE_TIME_ADDRESS',
+                oneTimeAddress: {
+                    address: destinationAddress
+                }
+            },
+            amount: amount,
+            note: 'Fitar da kuɗi daga App zuwa waje'
+        });
+        
+        console.log('An aika ma\'amala cikin nasara:', transaction.id);
+        return transaction;
+    } catch (error) {
+        console.error('Kuskure wajen aika kuɗi:', error);
+    }
+}
+
+// Sumsub KYC Webhook & Verification Handler (Express.js)
+const express = require('express');
+const crypto = require('crypto');
+const app = express();
+
+app.use(express.json());
+
+// Secret key daga Sumsub dashboard din ka
+const SUMSUB_WEBHOOK_SECRET_KEY = 'YOUR_SUMSUB_SECRET_KEY';
+
+app.post('/api/kyc/webhook', (req, res) => {
+    const signature = req.headers['x-payload-digest'];
+    const payload = JSON.stringify(req.body);
+
+    // Tabbatar da tsaro (Signature Verification)
+    const computedSignature = crypto
+        .createHmac('sha256', SUMSUB_WEBHOOK_SECRET_KEY)
+        .update(payload)
+        .digest('hex');
+
+    if (signature !== computedSignature) {
+        return res.status(403).send('An ƙunguruntar da tsaron Sakon (Invalid Signature)');
+    }
+
+    const { applicantId, reviewResult, externalUserId } = req.body;
+
+    if (reviewResult && reviewResult.reviewAnswer === 'GREEN') {
+        console.log(`An tantance mai amfani ${externalUserId} (Applicant ID: ${applicantId}) cikin nasara!`);
+        // Sabunta matsayin mai amfani a database zuwa "VERIFIED"
+    } else {
+        console.log(`An ki amincewa da tantancewar mai amfani ${externalUserId}`);
+        // Sabunta matsayin mai amfani zuwa "REJECTED"
+    }
+
+    res.status(200).send('An karɓi sakon KYC');
+});
