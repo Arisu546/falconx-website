@@ -975,136 +975,47 @@ export function RealTimeNotifications({ userId }) {
     </div>
   );
 }
-// backend/server.js
 const express = require('express');
 const http = require('http');
-const { WebSocketServer } = require('ws');
-const cors = require('cors');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-const { PrismaClient } = require('@prisma/client');
+const { Server } = require('socket.io');
+const ccxt = require('ccxt');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
-const prisma = new PrismaClient();
-
-app.use(express.json());
-app.use(cors());
-
-const JWT_SECRET = 'SUPER_SECRET_CRYPTO_KEY_2026';
-
-// Ajiye masu amfani da suka haɗu da WebSocket (Active WS Clients)
-const clients = new Map();
-
-wss.on('connection', (ws, req) => {
-    const urlParams = new URLSearchParams(req.url.split('?')[1]);
-    const userId = urlParams.get('userId');
-
-    if (userId) {
-        clients.set(userId, ws);
-        console.log(`[WebSocket] Mai amfani ${userId} ya haɗu.`);
-    }
-
-    ws.on('close', () => {
-        if (userId) {
-            clients.delete(userId);
-            console.log(`[WebSocket] Mai amfani ${userId} ya katse.`);
-        }
-    });
+const io = new Server(server, {
+  cors: { origin: "*" }
 });
 
-function notifyUser(userId, data) {
-    const ws = clients.get(userId);
-    if (ws && ws.readyState === ws.OPEN) {
-        ws.send(JSON.stringify(data));
-    }
+// Initialize Liquidity Aggregator via CCXT
+const exchange = new ccxt.binance({ enableRateLimit: true });
+
+async function fetchLiveMarketData() {
+  try {
+    const ticker = await exchange.fetchTicker('BTC/USDT');
+    io.emit('backend_price_update', {
+      symbol: ticker.symbol,
+      price: ticker.last,
+      high: ticker.high,
+      low: ticker.low,
+      volume: ticker.baseVolume,
+      timestamp: ticker.timestamp
+    });
+  } catch (error) {
+    console.error("CCXT Fetch Error:", error.message);
+  }
 }
 
-// 1. REGISTER ENDPOINT
-app.post('/api/auth/register', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        const existing = await prisma.user.findUnique({ where: { email } });
-        if (existing) return res.status(400).json({ status: 'ERROR', message: 'Imel din yana da mai shi riga.' });
+// Polling interval for backend price synchronization
+setInterval(fetchLiveMarketData, 2000);
 
-        const passwordHash = await bcrypt.hash(password, 10);
-        const user = await prisma.user.create({
-            data: {
-                email,
-                passwordHash,
-                wallets: {
-                    create: [
-                        { asset: 'USDT', balance: 5000.0 },
-                        { asset: 'BTC', balance: 1.0 }
-                    ]
-                }
-            },
-            include: { wallets: true }
-        });
-
-        res.status(201).json({ status: 'SUCCESS', message: 'An buɗe asusu cikin nasira', user });
-    } catch (err) {
-        res.status(500).json({ status: 'ERROR', message: err.message });
-    }
-});
-
-// 2. LOGIN ENDPOINT
-app.post('/api/auth/login', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-            return res.status(400).json({ status: 'ERROR', message: 'Imel ko kalmar sirri ba daidai ba ne.' });
-        }
-
-        const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '24h' });
-        res.status(200).json({ status: 'SUCCESS', token, userId: user.id });
-    } catch (err) {
-        res.status(500).json({ status: 'ERROR', message: err.message });
-    }
-});
-
-// 3. GET USER WALLETS & PROFILE
-app.get('/api/user/profile/:userId', async (req, res) => {
-    try {
-        const { userId } = req.params;
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            include: { wallets: true }
-        });
-        res.status(200).json({ status: 'SUCCESS', user });
-    } catch (err) {
-        res.status(500).json({ status: 'ERROR', message: err.message });
-    }
-});
-
-// 4. PLACE TRADE ORDER ENDPOINT
-app.post('/api/trade/order', async (req, res) => {
-    try {
-        const { userId, symbol, side, type, price, quantity } = req.body;
-
-        const order = await prisma.order.create({
-            data: { userId, symbol, side, type, price: parseFloat(price), quantity: parseFloat(quantity), status: 'FILLED' }
-        });
-
-        // Tura Real-time Notification ta WebSocket cewa an aiwatar da oda
-        notifyUser(userId, {
-            type: 'TRADE_SUCCESS',
-            title: `An yi nasarar ${side} ${symbol}`,
-            message: `Adadi: ${quantity} a farashi $${price}`,
-            time: new Date()
-        });
-
-        res.status(200).json({ status: 'SUCCESS', message: 'An zartar da odar ciniki', order });
-    } catch (err) {
-        res.status(500).json({ status: 'ERROR', message: err.message });
-    }
+io.on('connection', (socket) => {
+  console.log('Client connected to Backend Market Data Stream:', socket.id);
 });
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Full-Stack Backend Server yana aiki a tashar port ${PORT}`));
-import React, { useState, useEffect } from 'react';
+server.listen(PORT, () => {
+  console.log(`FalconX High-Performance Backend running on port ${PORT}`);
+});
 
 export default function MarketPriceHeader({ symbol = 'BTCUSDT' }) {
   const [priceData, setPriceData] = useState({
