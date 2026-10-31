@@ -1,0 +1,39 @@
+// HAWK X - All Markets in One Hook
+// File: hooks/useAllMarkets.ts
+
+import { useEffect, useState } from 'react';
+
+type Market = {
+  name: string;
+  symbol: string;
+  type: 'Crypto' | 'Forex' | 'Commodity' | 'Stocks';
+  price: string;
+  change: string;
+  icon: string;
+}
+
+export function useAllMarkets() {
+  const [markets, setMarkets] = useState<Market[]>([
+    { name: 'Bitcoin', symbol: 'BTC', type: 'Crypto', price: '68,432', change: '+2.4%', icon: '₿' },
+    { name: 'Gold', symbol: 'XAU/USD', type: 'Commodity', price: '2,450', change: '-0.3%', icon: '🪙' },
+    { name: 'EUR/USD', symbol: 'EURUSD', type: 'Forex', price: '1.0845', change: '+0.12%', icon: '💱' },
+    { name: 'Apple Inc.', symbol: 'AAPL', type: 'Stocks', price: '210.45', change: '+1.8%', icon: '🍎' },
+  ]);
+
+  useEffect(() => {
+    // Nan ne za ka hada da APIs
+    // 1. Crypto = Binance API: https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT
+    // 2. Forex/Gold/Stocks = TwelveData API (kyauta)
+    
+    const fetchPrices = async () => {
+      // Misali na fetching
+      console.log("HAWK X yana dauko farashin kasuwanni...");
+    }
+    
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 10000); // kowace 10 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  return markets;
+}
