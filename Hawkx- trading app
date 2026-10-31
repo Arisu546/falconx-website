@@ -57,3 +57,208 @@ export function Watchlist() {
     </div>
   )
 }
+npx create-next-app@latest hawkx-app --typescript --tailwind --app
+cd hawkx-app
+'use client';
+import { useEffect, useState } from 'react';
+
+type Asset = {
+  id: string;
+  name: string;
+  symbol: string;
+  market: string;
+  price: string;
+  change: string;
+  positive: boolean;
+};
+
+export default function HawkX() {
+  const [assets, setAssets] = useState<Asset[]>([
+    { id: 'btc', name: 'Bitcoin', symbol: 'BTC', market: 'Crypto • BTC', price: '...', change: '...', positive: true },
+    { id: 'eth', name: 'Ethereum', symbol: 'ETH', market: 'Crypto • ETH', price: '...', change: '...', positive: true },
+    { id: 'gold', name: 'Gold', symbol: 'XAU/USD', market: 'Commodity • XAU', price: '2,450', change: '-0.3%', positive: false },
+    { id: 'eurusd', name: 'EUR/USD', symbol: 'EURUSD', market: 'Forex • Euro', price: '1.0845', change: '+0.12%', positive: true },
+    { id: 'aapl', name: 'Apple Inc.', symbol: 'AAPL', market: 'Stocks • AAPL', price: '210.45', change: '+1.8%', positive: true },
+  ]);
+
+  // LIVE FETCH DAGA BINANCE
+  useEffect(() => {
+    async function loadCrypto() {
+      try {
+        const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbols=["BTCUSDT","ETHUSDT"]');
+        const data = await res.json();
+        // data = [{symbol: 'BTCUSDT', lastPrice, priceChangePercent}, ...]
+        
+        setAssets(prev => prev.map(a => {
+          if (a.id === 'btc') {
+            const btc = data.find((d:any) => d.symbol === 'BTCUSDT');
+            if (btc) return { ...a, price: parseFloat(btc.lastPrice).toLocaleString(), change: `${parseFloat(btc.priceChangePercent).toFixed(2)}%`, positive: parseFloat(btc.priceChangePercent) >= 0 };
+          }
+          if (a.id === 'eth') {
+            const eth = data.find((d:any) => d.symbol === 'ETHUSDT');
+            if (eth) return { ...a, price: parseFloat(eth.lastPrice).toLocaleString(), change: `${parseFloat(eth.priceChangePercent).toFixed(2)}%`, positive: parseFloat(eth.priceChangePercent) >= 0 };
+          }
+          return a;
+        }));
+      } catch (e) {
+        console.log("Binance error", e);
+      }
+    }
+
+    loadCrypto();
+    const interval = setInterval(loadCrypto, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <main className="min-h-screen bg-[#0A0A0F] text-white p-4 max-w-[420px] mx-auto">
+      {/* Header */}
+      <div className="flex justify-between items-center mt-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-black tracking-widest">HAWK X</h1>
+          <p className="text-[11px] tracking-[0.3em] text-gray-400">CRYPTO • FOREX • STOCKS • GOLD</p>
+        </div>
+        <div className="w-10 h-10 bg-[#1A1A24] rounded-full flex items-center justify-center">🦅</div>
+      </div>
+
+      {/* Chart Card - BTC */}
+      <div className="bg-[#15151E] rounded-2xl p-4 mb-6 border border-[#222]">
+        <p className="text-sm text-gray-400">BTC/USD • 1D <span className="float-right bg-green-500/20 text-green-400 px-2 py-0.5 rounded text-xs">{assets[0].change} today</span></p>
+        <h2 className="text-3xl font-bold mt-3">${assets[0].price} <span className="text-base font-normal">USD</span></h2>
+        <p className={`text-sm ${assets[0].positive ? 'text-green-400' : 'text-red-400'}`}>{assets[0].change} • Last 24h • LIVE from Binance</p>
+      </div>
+
+      {/* Watchlist */}
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="text-lg font-bold">Watchlist</h3>
+        <span className="text-xs text-[#D4AF37]">All Markets &gt;</span>
+      </div>
+
+      <div className="space-y-3">
+        {assets.map(a => (
+          <div key={a.id} className="bg-[#15151E] rounded-xl p-4 flex justify-between items-center border border-[#222]">
+            <div>
+              <p className="font-bold">{a.name}</p>
+              <p className="text-xs text-gray-400">{a.market}</p>
+            </div>
+            <div className="text-right">
+              <p className="font-mono font-bold">${a.price}</p>
+              <p className={`text-sm ${a.positive ? 'text-green-400' : 'text-red-400'}`}>{a.change} {a.positive ? '↑' : '↓'}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom Nav */}
+      <div className="fixed bottom-0 left-0 right-0 max-w-[420px] mx-auto bg-[#15151E] border-t border-[#222] flex justify-around p-3 rounded-t-2xl">
+        <span className="text-[#D4AF37] text-xs">● Home</span>
+        <span className="text-gray-500 text-xs">Markets</span>
+        <span className="text-gray-500 text-xs">Trade</span>
+        <span className="text-gray-500 text-xs">Portfolio</span>
+        <span className="text-gray-500 text-xs">Profile</span>
+      </div>
+    </main>
+  );
+}
+'use client';
+import { useEffect, useState } from 'react';
+
+type Asset = {
+  id: string;
+  name: string;
+  symbol: string;
+  market: string;
+  price: string;
+  change: string;
+  positive: boolean;
+};
+
+export default function HawkX() {
+  const [assets, setAssets] = useState<Asset[]>([
+    { id: 'btc', name: 'Bitcoin', symbol: 'BTC', market: 'Crypto • BTC', price: '...', change: '...', positive: true },
+    { id: 'eth', name: 'Ethereum', symbol: 'ETH', market: 'Crypto • ETH', price: '...', change: '...', positive: true },
+    { id: 'gold', name: 'Gold', symbol: 'XAU/USD', market: 'Commodity • XAU', price: '2,450', change: '-0.3%', positive: false },
+    { id: 'eurusd', name: 'EUR/USD', symbol: 'EURUSD', market: 'Forex • Euro', price: '1.0845', change: '+0.12%', positive: true },
+    { id: 'aapl', name: 'Apple Inc.', symbol: 'AAPL', market: 'Stocks • AAPL', price: '210.45', change: '+1.8%', positive: true },
+  ]);
+
+  // LIVE FETCH DAGA BINANCE
+  useEffect(() => {
+    async function loadCrypto() {
+      try {
+        const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbols=["BTCUSDT","ETHUSDT"]');
+        const data = await res.json();
+        // data = [{symbol: 'BTCUSDT', lastPrice, priceChangePercent}, ...]
+        
+        setAssets(prev => prev.map(a => {
+          if (a.id === 'btc') {
+            const btc = data.find((d:any) => d.symbol === 'BTCUSDT');
+            if (btc) return { ...a, price: parseFloat(btc.lastPrice).toLocaleString(), change: `${parseFloat(btc.priceChangePercent).toFixed(2)}%`, positive: parseFloat(btc.priceChangePercent) >= 0 };
+          }
+          if (a.id === 'eth') {
+            const eth = data.find((d:any) => d.symbol === 'ETHUSDT');
+            if (eth) return { ...a, price: parseFloat(eth.lastPrice).toLocaleString(), change: `${parseFloat(eth.priceChangePercent).toFixed(2)}%`, positive: parseFloat(eth.priceChangePercent) >= 0 };
+          }
+          return a;
+        }));
+      } catch (e) {
+        console.log("Binance error", e);
+      }
+    }
+
+    loadCrypto();
+    const interval = setInterval(loadCrypto, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <main className="min-h-screen bg-[#0A0A0F] text-white p-4 max-w-[420px] mx-auto">
+      {/* Header */}
+      <div className="flex justify-between items-center mt-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-black tracking-widest">HAWK X</h1>
+          <p className="text-[11px] tracking-[0.3em] text-gray-400">CRYPTO • FOREX • STOCKS • GOLD</p>
+        </div>
+        <div className="w-10 h-10 bg-[#1A1A24] rounded-full flex items-center justify-center">🦅</div>
+      </div>
+
+      {/* Chart Card - BTC */}
+      <div className="bg-[#15151E] rounded-2xl p-4 mb-6 border border-[#222]">
+        <p className="text-sm text-gray-400">BTC/USD • 1D <span className="float-right bg-green-500/20 text-green-400 px-2 py-0.5 rounded text-xs">{assets[0].change} today</span></p>
+        <h2 className="text-3xl font-bold mt-3">${assets[0].price} <span className="text-base font-normal">USD</span></h2>
+        <p className={`text-sm ${assets[0].positive ? 'text-green-400' : 'text-red-400'}`}>{assets[0].change} • Last 24h • LIVE from Binance</p>
+      </div>
+
+      {/* Watchlist */}
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="text-lg font-bold">Watchlist</h3>
+        <span className="text-xs text-[#D4AF37]">All Markets &gt;</span>
+      </div>
+
+      <div className="space-y-3">
+        {assets.map(a => (
+          <div key={a.id} className="bg-[#15151E] rounded-xl p-4 flex justify-between items-center border border-[#222]">
+            <div>
+              <p className="font-bold">{a.name}</p>
+              <p className="text-xs text-gray-400">{a.market}</p>
+            </div>
+            <div className="text-right">
+              <p className="font-mono font-bold">${a.price}</p>
+              <p className={`text-sm ${a.positive ? 'text-green-400' : 'text-red-400'}`}>{a.change} {a.positive ? '↑' : '↓'}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom Nav */}
+      <div className="fixed bottom-0 left-0 right-0 max-w-[420px] mx-auto bg-[#15151E] border-t border-[#222] flex justify-around p-3 rounded-t-2xl">
+        <span className="text-[#D4AF37] text-xs">● Home</span>
+        <span className="text-gray-500 text-xs">Markets</span>
+        <span className="text-gray-500 text-xs">Trade</span>
+        <span className="text-gray-500 text-xs">Portfolio</span>
+        <span className="text-gray-500 text-xs">Profile</span>
+      </div>
+    </main>
+  );
+}
+npm run dev
